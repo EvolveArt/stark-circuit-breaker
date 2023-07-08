@@ -1,4 +1,5 @@
-mod erc20;
-mod token_sender;
+mod account;
+mod introspection;
 
+#[cfg(test)]
 mod tests;

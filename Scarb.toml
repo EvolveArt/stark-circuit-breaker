@@ -1,18 +1,16 @@
 [package]
-name = "token_sender"
+name = "circuit_breaker"
 version = "0.1.0"
 
-
-[[target.starknet-contract]]
-# Enable Sierra codegen.
-sierra = true
-# Enable CASM codegen.
-casm = true
-name = "compiled"
+[lib]
+name = "circuit_breaker"
 
 # See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest
 
 [dependencies]
-starknet = ">=2.0.0-rc4"
+rules_utils = { git = "https://github.com/ruleslabs/starknet-utils.git" }
+starknet = ">=2.0.1"
 
-[scripts]
+[[target.starknet-contract]]
+# Enable Sierra codegen.
+sierra = true
