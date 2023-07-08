@@ -1,5 +1,6 @@
 use core::traits::TryInto;
 use starknet::ContractAddress;
+use array::Array;
 
 #[starknet::interface]
 trait ICircuitBreaker<TCircuit> {
