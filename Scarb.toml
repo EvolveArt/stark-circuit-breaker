@@ -1,0 +1,18 @@
+[package]
+name = "token_sender"
+version = "0.1.0"
+
+
+[[target.starknet-contract]]
+# Enable Sierra codegen.
+sierra = true
+# Enable CASM codegen.
+casm = true
+name = "compiled"
+
+# See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest
+
+[dependencies]
+starknet = ">=2.0.0-rc4"
+
+[scripts]
