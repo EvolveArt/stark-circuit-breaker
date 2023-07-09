@@ -19,7 +19,7 @@ mod ProtectedContract {
         _sender: ContractAddress,
         _recipient: ContractAddress,
         _amount: u256
-    ) {// // Transfer the tokens safely from sender to recipient
+    ) { // // Transfer the tokens safely from sender to recipient
     // IERC20(_token).safeTransferFrom(_sender, _recipient, _amount);
     // // Call the circuitBreaker's onTokenInflow
     // circuitBreaker.onTokenInflow(_token, _amount);
@@ -31,13 +31,15 @@ mod ProtectedContract {
         _recipient: ContractAddress,
         _amount: u256,
         _revertOnRateLimit: bool
-    ) {// // Transfer the tokens safely to the circuitBreaker
+    ) { // // Transfer the tokens safely to the circuitBreaker
     // IERC20(_token).safeTransfer(address(circuitBreaker), _amount);
     // // Call the circuitBreaker's onTokenOutflow
     // circuitBreaker.onTokenOutflow(_token, _amount, _recipient, _revertOnRateLimit);
     }
 
-    fn cbInflowNative(ref self: ContractState) {// // Transfer the tokens safely from sender to recipient
+    fn cbInflowNative(
+        ref self: ContractState
+    ) { // // Transfer the tokens safely from sender to recipient
     // circuitBreaker.onNativeAssetInflow(msg.value);
     }
 
@@ -46,7 +48,7 @@ mod ProtectedContract {
         _recipient: ContractAddress,
         _amount: u256,
         _revertOnRateLimit: bool
-    ) {// // Transfer the native tokens safely through the circuitBreaker
+    ) { // // Transfer the native tokens safely through the circuitBreaker
     // circuitBreaker.onNativeAssetOutflow{value: _amount}(_recipient, _revertOnRateLimit);
     }
 }

@@ -26,18 +26,21 @@ mod MockDeFiProtocol {
     //
 
     #[constructor]
-    fn constructor(ref self: ContractState, circuit_breaker: starknet::ContractAddress) {// Initialize circuit breaker
+    fn constructor(
+        ref self: ContractState, circuit_breaker: starknet::ContractAddress
+    ) { // Initialize circuit breaker
     }
 
     #[external(v0)]
-    impl MockDeFiProtocol of IMockDeFiProtocol<T> {
+    impl MockDeFiProtocolImpl of circuit_breaker::tests::mocks::defi::IMockDeFiProtocol<TContractState> {
         fn deposit(ref self: TContractState, token: starknet::ContractAddress, amount: u256) {
             // IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
             let state: CircuitBreaker::ContractState = CircuitBreaker::unsafe_new_contract_state();
             let caller = get_caller_address();
             let this = get_contract_address();
             CircuitBreaker::cbInflowSafeTransferFrom(token, caller, this, amount);
-        // Your logic here
+
+            // Your logic here
         }
 
         fn withdrawal(ref self: TContractState, token: starknet::ContractAddress, amount: u256) {
@@ -55,7 +58,8 @@ mod MockDeFiProtocol {
         ) {
             let ERC20 = IERC20Dispatcher { contract_address: token };
             ERC20.safeTransferFrom(caller, this, amount);
-        // Your logic here
+            
+            // Your logic here
         }
 
         fn depositNative(ref self: TContractState) {
