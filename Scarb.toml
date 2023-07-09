@@ -9,8 +9,10 @@ name = "circuit_breaker"
 
 [dependencies]
 rules_utils = { git = "https://github.com/ruleslabs/starknet-utils.git" }
-starknet = ">=2.0.1"
+alexandria_math = { git = "https://github.com/keep-starknet-strange/alexandria.git", rev = "9909280" }
+starknet = ">=2.0.0"
 
 [[target.starknet-contract]]
 # Enable Sierra codegen.
 sierra = true
+allowed-libfuncs-list.name = "audited"

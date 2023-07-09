@@ -39,8 +39,7 @@ mod MockDeFiProtocol {
             let caller = get_caller_address();
             let this = get_contract_address();
             CircuitBreaker::cbInflowSafeTransferFrom(token, caller, this, amount);
-
-            // Your logic here
+        // Your logic here
         }
 
         fn withdrawal(ref self: TContractState, token: starknet::ContractAddress, amount: u256) {
@@ -58,8 +57,7 @@ mod MockDeFiProtocol {
         ) {
             let ERC20 = IERC20Dispatcher { contract_address: token };
             ERC20.safeTransferFrom(caller, this, amount);
-            
-            // Your logic here
+        // Your logic here
         }
 
         fn depositNative(ref self: TContractState) {
