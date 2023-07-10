@@ -3,7 +3,7 @@
 A circuit breaker is a mechanism that can prevent involuntary actions for Ethereum users. The goal is to establish a benchmark for smart contracts that can effectively prevent abnormally large token outflows from a DeFi protocol, triggering suspicion and potential intervention.
 EIP-7265 introduces a mechanism where users can define the withdrawal threshold that activates the circuit breaker. The purpose of the circuit breaker is to automatically trigger a disruption when an abnormally high number of tokens are withdrawn from a protocol within a brief timeframe. We propose the integration of circuit breakers within Starknet accounts, allowing users to customize the asset outflows of their account and minimize losses when there is a breach.
 
-
+EIP-7265 has been integrated for Starknet protocols by re-writing contracts in Cairo. Protocols on Starknet can now implement circuit breakers that trigger a temporary halt on protocol-wide token outflows when a threshold is exceeded
 
 This repo requires `Scarb 0.5.1`
 
