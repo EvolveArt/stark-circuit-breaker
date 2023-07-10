@@ -5,10 +5,16 @@ use array::Array;
 #[starknet::interface]
 trait ICircuitBreaker<TCircuit> {
     fn registerAsset(
-        ref self: TCircuit, _asset: ContractAddress, _metricThreshold: u256, _minAmountToLimit: u256
+        ref self: TCircuit,
+        _asset: ContractAddress,
+        _minLiqRetainedBps: felt252,
+        _limitBeginThreshold: felt252
     );
     fn updateAssetParams(
-        ref self: TCircuit, _asset: ContractAddress, _metricThreshold: u256, _minAmountToLimit: u256
+        ref self: TCircuit,
+        _asset: ContractAddress,
+        _minLiqRetainedBps: felt252,
+        _limitBeginThreshold: felt252
     );
     fn onTokenInflow(ref self: TCircuit, _token: ContractAddress, _amount: u256);
     fn onTokenOutflow(
