@@ -7,7 +7,9 @@ mod CircuitBreaker {
     use starknet::{get_caller_address, get_contract_address, ContractAddress, get_block_timestamp};
     use circuit_breaker::circuit_breaker::interface::ICircuitBreaker;
     use circuit_breaker::circuit_breaker::structs::{Limiter, LiqChangeNode};
+    use circuit_breaker::utils::LimiterLib::{LimiterTrait, U64_MAX, LimitStatus};
     use circuit_breaker::tests::mocks::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use alexandria_math::signed_integers::i129;
     use array::ArrayTrait;
     use option::OptionTrait;
     use box::BoxTrait;
@@ -26,6 +28,43 @@ mod CircuitBreaker {
         _grace_period_end_timestamp: u64,
         _last_rate_limit_timestamp: u64,
         _token_limiters: LegacyMap<ContractAddress, Limiter>
+    }
+
+    //
+    // Events
+    //
+
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    enum Event {
+        AdminSet: AdminSet,
+        AssetInflow: AssetInflow,
+        AssetLimitBreached: AssetLimitBreached,
+        AssetWithdraw: AssetWithdraw
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdminSet {
+        new_admin: ContractAddress
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AssetInflow {
+        token: ContractAddress,
+        amount: u256
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AssetLimitBreached {
+        token: ContractAddress,
+        timestamp: u64
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AssetWithdraw {
+        token: ContractAddress,
+        recipient: ContractAddress,
+        amount: u256
     }
 
     //
@@ -82,8 +121,8 @@ mod CircuitBreaker {
         fn registerAsset(
             ref self: ContractState,
             _asset: ContractAddress,
-            _minLiqRetainedBps: felt252,
-            _limitBeginThreshold: felt252
+            _minLiqRetainedBps: u256,
+            _limitBeginThreshold: u256
         ) {
             self._only_admin();
 
@@ -103,14 +142,14 @@ mod CircuitBreaker {
         fn updateAssetParams(
             ref self: ContractState,
             _asset: ContractAddress,
-            _minLiqRetainedBps: felt252,
-            _limitBeginThreshold: felt252
+            _minLiqRetainedBps: u256,
+            _limitBeginThreshold: u256
         ) {
             self._only_admin();
 
             let mut limiter = self._token_limiters.read(_asset);
             limiter.updateParams(_minLiqRetainedBps, _limitBeginThreshold);
-            limiter.sync(self._withdrawal_period.read());
+            limiter.sync(self._withdrawal_period.read(), Option::Some(U64_MAX));
         }
 
         fn onTokenInflow(ref self: ContractState, _token: ContractAddress, _amount: u256) {
@@ -141,7 +180,7 @@ mod CircuitBreaker {
 
             assert(_newAdmin.is_non_zero(), 'Invalid Address');
             self._admin.write(_newAdmin);
-            self.emit(Event::AdminSet { new_admin: _newAdmin });
+            self.emit(Event::AdminSet(AdminSet { new_admin: _newAdmin }));
         }
         fn overrideRateLimit(ref self: ContractState) {
             self._only_admin();
@@ -251,19 +290,31 @@ mod CircuitBreaker {
             self: @ContractState, recipient: ContractAddress, asset: ContractAddress
         ) -> u256 {}
         fn isProtectedContract(self: @ContractState, account: ContractAddress) -> bool {}
-        fn admin(self: @ContractState) -> ContractAddress {}
-        fn isRateLimited(self: @ContractState) -> bool {}
-        fn rateLimitCooldownPeriod(self: @ContractState) -> u256 {}
-        fn lastRateLimitTimestamp(self: @ContractState) -> u256 {}
-        fn gracePeriodEndTimestamp(self: @ContractState) -> u256 {}
+        fn admin(self: @ContractState) -> ContractAddress {
+            self._admin.read()
+        }
+        fn isRateLimited(self: @ContractState) -> bool {
+            self._is_rate_limited.read()
+        }
+        fn rateLimitCooldownPeriod(self: @ContractState) -> u64 {
+            self._rate_limit_cooldown_period.read()
+        }
+        fn lastRateLimitTimestamp(self: @ContractState) -> u64 {
+            self._last_rate_limit_timestamp.read()
+        }
+        fn gracePeriodEndTimestamp(self: @ContractState) -> u64 {
+            self._grace_period_end_timestamp.read()
+        }
         fn isRateLimitTriggered(self: @ContractState, _asset: ContractAddress) -> bool {
-            let limiter = self._token_limiters.read(_asset);
-            limiter.status() == LimitStatus.Triggered
+            let limiter: Limiter = self._token_limiters.read(_asset);
+            limiter.status() == LimitStatus::Triggered(0)
         }
         fn isInGracePeriod(self: @ContractState) -> bool {
             get_block_timestamp() <= self._grace_period_end_timestamp.read()
         }
-        fn isOperational(self: @ContractState) -> bool {}
+        fn isOperational(self: @ContractState) -> bool {
+            self._is_operational.read()
+        }
     }
 
     ////////////////////////////////////////////////////////////////
@@ -280,7 +331,7 @@ mod CircuitBreaker {
                 .record_change(
                     _amount, self._withdrawal_period.read(), self._liquidity_tick_length.read()
                 );
-            self.emit(Event::AssetInflow { token: _token, amount: _amount });
+            self.emit(Event::AssetInflow(AssetInflow { token: _token, amount: _amount }));
         }
 
         fn _onTokenOutflow(
@@ -301,10 +352,8 @@ mod CircuitBreaker {
             }
 
             limiter
-                .record_change(
-                    _amount.neg(),
-                    self._withdrawal_period.read(),
-                    self._liquidity_tick_length.read()
+                .recordChange(
+                    -_amount, self._withdrawal_period.read(), self._liquidity_tick_length.read()
                 );
 
             // Check if currently rate limited, if so, add to locked funds claimable when resolved
@@ -318,7 +367,7 @@ mod CircuitBreaker {
 
             // Check if rate limit is triggered after withdrawal and not in grace period
             // (grace period allows for withdrawals to be made if rate limit is triggered but overriden)
-            if (limiter.status() == LimitStatus.Triggered && !self.isInGracePeriod()) {
+            if (limiter.status() == LimitStatus::Triggered(0) && !self.isInGracePeriod()) {
                 assert(!_revert_on_rate_limit, 'Rate Limited');
 
                 let timestamp = get_block_timestamp();
@@ -330,7 +379,10 @@ mod CircuitBreaker {
                 let locked_funds = self._locked_funds.read(_recipient, _token);
                 self._locked_funds.write(_recipient, _token, locked_funds + _amount);
 
-                self.emit(Event::AssetLimitBreached { token: _token, timestamp });
+                self
+                    .emit(
+                        Event::AssetLimitBreached(AssetLimitBreached { token: _token, timestamp })
+                    );
 
                 return;
             }
@@ -341,7 +393,9 @@ mod CircuitBreaker {
 
             self
                 .emit(
-                    Event::AssetWithdraw { token: _token, recipient: _recipient, amount: _amount }
+                    Event::AssetWithdraw(
+                        AssetWithdraw { token: _token, recipient: _recipient, amount: _amount }
+                    )
                 );
         }
     }
