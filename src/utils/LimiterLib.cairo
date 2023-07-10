@@ -1,3 +1,4 @@
+#[derive(Drop, Copy, PartialEq)]
 enum LimitStatus {
     Uninitialized: felt252,
     Inactive: felt252,

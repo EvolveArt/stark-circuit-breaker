@@ -40,7 +40,8 @@ mod CircuitBreaker {
         AdminSet: AdminSet,
         AssetInflow: AssetInflow,
         AssetLimitBreached: AssetLimitBreached,
-        AssetWithdraw: AssetWithdraw
+        AssetWithdraw: AssetWithdraw,
+        AssetRegistered: AssetRegistered
     }
 
     #[derive(Drop, starknet::Event)]
@@ -65,6 +66,13 @@ mod CircuitBreaker {
         token: ContractAddress,
         recipient: ContractAddress,
         amount: u256
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AssetRegistered {
+        asset: ContractAddress,
+        minLiqRetainedBps: u256,
+        limitBeginThreshold: u256
     }
 
     //
@@ -131,11 +139,13 @@ mod CircuitBreaker {
 
             self
                 .emit(
-                    Event::AssetRegistered {
-                        asset: _asset,
-                        minLiqRetainedBps: _minLiqRetainedBps,
-                        limitBeginThreshold: _limitBeginThreshold,
-                    }
+                    Event::AssetRegistered(
+                        AssetRegistered {
+                            asset: _asset,
+                            minLiqRetainedBps: _minLiqRetainedBps,
+                            limitBeginThreshold: _limitBeginThreshold,
+                        }
+                    )
                 );
         }
 
@@ -289,7 +299,9 @@ mod CircuitBreaker {
         fn lockedFunds(
             self: @ContractState, recipient: ContractAddress, asset: ContractAddress
         ) -> u256 {}
-        fn isProtectedContract(self: @ContractState, account: ContractAddress) -> bool {}
+        fn isProtectedContract(self: @ContractState, account: ContractAddress) -> bool {
+            self._is_protected_contract.read(account)
+        }
         fn admin(self: @ContractState) -> ContractAddress {
             self._admin.read()
         }
