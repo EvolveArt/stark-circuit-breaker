@@ -113,18 +113,26 @@ mod CircuitBreaker {
             limiter.sync(self._withdrawal_period.read());
         }
 
-        fn onTokenInflow(ref self: ContractState, _token: ContractAddress, _amount: u256) {}
+        fn onTokenInflow(ref self: ContractState, _token: ContractAddress, _amount: u256) {
+            self._only_protected();
+            self._only_operationnal();
+
+            self._onTokenInflow(_token, _amount);
+        }
+
         fn onTokenOutflow(
             ref self: ContractState,
             _token: ContractAddress,
             _amount: u256,
             _recipient: ContractAddress,
             _revertOnRateLimit: bool
-        ) {}
-        fn onNativeAssetInflow(ref self: ContractState, _amount: u256) {}
-        fn onNativeAssetOutflow(
-            ref self: ContractState, _recipient: ContractAddress, _revertOnRateLimit: bool
-        ) {}
+        ) {
+            self._only_protected();
+            self._only_operationnal();
+
+            self._onTokenOutflow(_token, _amount, _recipient, _revertOnRateLimit);
+        }
+
         fn claimLockedFunds(
             ref self: ContractState, _asset: ContractAddress, _recipient: ContractAddress
         ) {}
@@ -147,7 +155,20 @@ mod CircuitBreaker {
                 ._grace_period_end_timestamp
                 .write(self._last_rate_limit_timestamp.read() + self._withdrawal_period.read());
         }
-        fn overrideExpiredRateLimit(ref self: ContractState) {}
+        fn overrideExpiredRateLimit(ref self: ContractState) {
+            assert(self._is_rate_limited.read(), 'Not Rate Limited');
+            assert(
+                get_block_timestamp()
+                    - self
+                        ._last_rate_limit_timestamp
+                        .read() >= self
+                        ._rate_limit_cooldown_period
+                        .read(),
+                'Cooldown not elapsed'
+            );
+
+            self._is_rate_limited.write(false);
+        }
         fn addProtectedContracts(
             ref self: ContractState, _ProtectedContracts: Array<ContractAddress>
         ) {
@@ -235,8 +256,93 @@ mod CircuitBreaker {
         fn rateLimitCooldownPeriod(self: @ContractState) -> u256 {}
         fn lastRateLimitTimestamp(self: @ContractState) -> u256 {}
         fn gracePeriodEndTimestamp(self: @ContractState) -> u256 {}
-        fn isRateLimitTriggered(self: @ContractState, _asset: ContractAddress) -> bool {}
-        fn isInGracePeriod(self: @ContractState) -> bool {}
+        fn isRateLimitTriggered(self: @ContractState, _asset: ContractAddress) -> bool {
+            let limiter = self._token_limiters.read(_asset);
+            limiter.status() == LimitStatus.Triggered
+        }
+        fn isInGracePeriod(self: @ContractState) -> bool {
+            get_block_timestamp() <= self._grace_period_end_timestamp.read()
+        }
         fn isOperational(self: @ContractState) -> bool {}
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                         INTERNAL                           //
+    ////////////////////////////////////////////////////////////////
+
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn _onTokenInflow(ref self: ContractState, _token: ContractAddress, _amount: i129) {
+            /// @dev uint256 could overflow into negative
+            let mut limiter = self._token_limiters.read(_token);
+
+            limiter
+                .record_change(
+                    _amount, self._withdrawal_period.read(), self._liquidity_tick_length.read()
+                );
+            self.emit(Event::AssetInflow { token: _token, amount: _amount });
+        }
+
+        fn _onTokenOutflow(
+            ref self: ContractState,
+            _token: ContractAddress,
+            _amount: i129,
+            _recipient: ContractAddress,
+            _revert_on_rate_limit: bool
+        ) {
+            let mut limiter = self._token_limiters.read(_token);
+
+            // Check if the token has enforced rate limited
+            if (!limiter.initialized()) {
+                // if it is not rate limited, just transfer the tokens
+                let ERC20 = IERC20Dispatcher { contract_address: _token };
+                ERC20.transfer(_recipient, _amount);
+                return;
+            }
+
+            limiter
+                .record_change(
+                    _amount.neg(),
+                    self._withdrawal_period.read(),
+                    self._liquidity_tick_length.read()
+                );
+
+            // Check if currently rate limited, if so, add to locked funds claimable when resolved
+            if (self._is_rate_limited.read()) {
+                assert(!_revert_on_rate_limit, 'Rate Limited');
+
+                let locked_funds = self._locked_funds.read(_recipient, _token);
+                self._locked_funds.write(_recipient, _token, locked_funds + _amount);
+                return;
+            }
+
+            // Check if rate limit is triggered after withdrawal and not in grace period
+            // (grace period allows for withdrawals to be made if rate limit is triggered but overriden)
+            if (limiter.status() == LimitStatus.Triggered && !self.isInGracePeriod()) {
+                assert(!_revert_on_rate_limit, 'Rate Limited');
+
+                let timestamp = get_block_timestamp();
+
+                // if it is, set rate limited to true
+                self._is_rate_limited.write(true);
+                self._last_rate_limit_timestamp.write(timestamp);
+                // add to locked funds claimable when resolved
+                let locked_funds = self._locked_funds.read(_recipient, _token);
+                self._locked_funds.write(_recipient, _token, locked_funds + _amount);
+
+                self.emit(Event::AssetLimitBreached { token: _token, timestamp });
+
+                return;
+            }
+
+            // if everything is good, transfer the tokens
+            let ERC20 = IERC20Dispatcher { contract_address: _token };
+            ERC20.transfer(_recipient, _amount);
+
+            self
+                .emit(
+                    Event::AssetWithdraw { token: _token, recipient: _recipient, amount: _amount }
+                );
+        }
     }
 }
