@@ -330,7 +330,7 @@ mod CircuitBreaker {
     }
 
     ////////////////////////////////////////////////////////////////
-    //                         INTERNAL                           //
+    //                    INTERNAL FUNCTIONS                      //
     ////////////////////////////////////////////////////////////////
 
     #[generate_trait]
@@ -340,7 +340,7 @@ mod CircuitBreaker {
             let mut limiter = self._token_limiters.read(_token);
 
             limiter
-                .record_change(
+                .recordChange(
                     _amount, self._withdrawal_period.read(), self._liquidity_tick_length.read()
                 );
             self.emit(Event::AssetInflow(AssetInflow { token: _token, amount: _amount }));

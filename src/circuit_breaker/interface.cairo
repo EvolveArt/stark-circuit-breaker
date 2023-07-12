@@ -39,9 +39,9 @@ trait ICircuitBreaker<TCircuit> {
     fn isProtectedContract(self: @TCircuit, account: ContractAddress) -> bool;
     fn admin(self: @TCircuit) -> ContractAddress;
     fn isRateLimited(self: @TCircuit) -> bool;
-    fn rateLimitCooldownPeriod(self: @TCircuit) -> u64;
-    fn lastRateLimitTimestamp(self: @TCircuit) -> u64;
-    fn gracePeriodEndTimestamp(self: @TCircuit) -> u64;
+    fn rateLimitCooldownPeriod(self: @TCircuit) -> u256;
+    fn lastRateLimitTimestamp(self: @TCircuit) -> u256;
+    fn gracePeriodEndTimestamp(self: @TCircuit) -> u256;
     fn isRateLimitTriggered(self: @TCircuit, _asset: ContractAddress) -> bool;
     fn isInGracePeriod(self: @TCircuit) -> bool;
     fn isOperational(self: @TCircuit) -> bool;
